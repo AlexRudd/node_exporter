@@ -73,18 +73,17 @@ func (c *promAggCollector) Update(ch chan<- prometheus.Metric) (err error) {
 				}
 				// extract labels from target config
 				for lk, lv := range t.Labels {
-					if lk != "__name__" {
-						labels[string(lk)] = string(lv)
-					}
+					labels[string(lk)] = string(lv)
 				}
 				// build new untyped metric
 				m := prometheus.NewGauge(prometheus.GaugeOpts{
-					Namespace: "triangle",
-					//Subsystem:   "promagg",
+					//Namespace: Namespace,
+					//Subsystem: "promagg",
 					Name:        string(s.Metric["__name__"]),
 					Help:        fmt.Sprintf("aggregated field %s from %s.", s.Metric["__name__"], t.Endpoint),
 					ConstLabels: labels,
 				})
+				//set and collect
 				m.Set(float64(s.Value))
 				m.Collect(ch)
 			}
