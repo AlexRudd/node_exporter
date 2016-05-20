@@ -102,10 +102,13 @@ func (c *promAggCollector) fetchEndpoints() {
 		return
 	}
 
-	if err = json.NewDecoder(targetFile).Decode(&c.targets); err != nil {
+	newTargets := make(scrapeTargets, 0)
+	if err = json.NewDecoder(targetFile).Decode(&newTargets); err != nil {
 		log.Debugf("error unmarshalling json: %s", err.Error())
 		return
 	}
+
+	c.targets = newTargets
 }
 
 func (c *promAggCollector) scrape(url string) (model.Samples, error) {
