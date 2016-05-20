@@ -61,19 +61,20 @@ func (c *promAggCollector) Update(ch chan<- prometheus.Metric) (err error) {
 	c.fetchEndpoints()
 	for _, t := range c.targets {
 		log.Debugf("scraping endpoint %s", t.Endpoint)
+		log.Debugf("applying labels %s", t.Labels)
 		samples, err := c.scrape(t.Endpoint)
 		if err == nil {
 			for _, s := range samples {
 				// extract labels from metric
 				var labels = make(prometheus.Labels)
 				for lk, lv := range s.Metric {
-					if lk != "__name__" {
+					if string(lk) != "__name__" {
 						labels[string(lk)] = string(lv)
 					}
 				}
 				// extract labels from target config
 				for lk, lv := range t.Labels {
-					labels[string(lk)] = string(lv)
+					labels[lk] = lv
 				}
 				// build new untyped metric
 				m := prometheus.NewGauge(prometheus.GaugeOpts{
