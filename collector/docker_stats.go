@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/docker/engine-api/client"
@@ -73,17 +74,41 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 	for n, s := range stats {
 		// set container name
 		var labels = make(prometheus.Labels)
-		labels["name"] = n
+		labels["name"] = strings.TrimPrefix(n, "/")
 		// build new cpu counter metric
 		m := prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace:   Namespace,
 			Subsystem:   "docker",
 			Name:        string("cpu_total_usage"),
-			Help:        fmt.Sprintf("CPU total usage in seconds"),
+			Help:        fmt.Sprintf("CPU total usage in nanoseconds"),
 			ConstLabels: labels,
 		})
 		//set and collect
 		m.Set(float64(s.CPUStats.CPUUsage.TotalUsage))
+		m.Collect(ch)
+
+		// build new cpu counter metric
+		m = prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace:   Namespace,
+			Subsystem:   "docker",
+			Name:        string("memory_usage"),
+			Help:        fmt.Sprintf("Memory usage in bytes"),
+			ConstLabels: labels,
+		})
+		//set and collect
+		m.Set(float64(s.MemoryStats.Usage))
+		m.Collect(ch)
+
+		// build new cpu counter metric
+		m = prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace:   Namespace,
+			Subsystem:   "docker",
+			Name:        string("memory_limit"),
+			Help:        fmt.Sprintf("Memory limit in bytes"),
+			ConstLabels: labels,
+		})
+		//set and collect
+		m.Set(float64(s.MemoryStats.Limit))
 		m.Collect(ch)
 	}
 
