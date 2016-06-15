@@ -60,58 +60,57 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 	var wg sync.WaitGroup
 	c.mtx.RLock()
 	defer c.mtx.RUnlock()
-	var stats = make(map[string]*types.Stats)
 
 	for _, c := range c.containers {
 		wg.Add(1)
 		go func(container types.Container) {
 			defer wg.Done()
-			stats[container.Names[0]] = scrapeDockerStats(container)
+			s := scrapeDockerStats(container)
+			// set container name
+			var labels = make(prometheus.Labels)
+			labels["name"] = strings.TrimPrefix(container.Names[0], "/")
+			for lk, lv := range container.Labels {
+				labels[lk] = lv
+			}
+			// build new cpu counter metric
+			m := prometheus.NewCounter(prometheus.CounterOpts{
+				Namespace:   Namespace,
+				Subsystem:   "docker",
+				Name:        string("cpu_total_usage"),
+				Help:        fmt.Sprintf("CPU total usage in nanoseconds"),
+				ConstLabels: labels,
+			})
+			//set and collect
+			m.Set(float64(s.CPUStats.CPUUsage.TotalUsage))
+			m.Collect(ch)
+
+			// build new cpu counter metric
+			m = prometheus.NewGauge(prometheus.GaugeOpts{
+				Namespace:   Namespace,
+				Subsystem:   "docker",
+				Name:        string("memory_usage"),
+				Help:        fmt.Sprintf("Memory usage in bytes"),
+				ConstLabels: labels,
+			})
+			//set and collect
+			m.Set(float64(s.MemoryStats.Usage))
+			m.Collect(ch)
+
+			// build new cpu counter metric
+			m = prometheus.NewGauge(prometheus.GaugeOpts{
+				Namespace:   Namespace,
+				Subsystem:   "docker",
+				Name:        string("memory_limit"),
+				Help:        fmt.Sprintf("Memory limit in bytes"),
+				ConstLabels: labels,
+			})
+			//set and collect
+			m.Set(float64(s.MemoryStats.Limit))
+			m.Collect(ch)
 		}(c)
 	}
+
 	wg.Wait()
-
-	for n, s := range stats {
-		// set container name
-		var labels = make(prometheus.Labels)
-		labels["name"] = strings.TrimPrefix(n, "/")
-		// build new cpu counter metric
-		m := prometheus.NewCounter(prometheus.CounterOpts{
-			Namespace:   Namespace,
-			Subsystem:   "docker",
-			Name:        string("cpu_total_usage"),
-			Help:        fmt.Sprintf("CPU total usage in nanoseconds"),
-			ConstLabels: labels,
-		})
-		//set and collect
-		m.Set(float64(s.CPUStats.CPUUsage.TotalUsage))
-		m.Collect(ch)
-
-		// build new cpu counter metric
-		m = prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace:   Namespace,
-			Subsystem:   "docker",
-			Name:        string("memory_usage"),
-			Help:        fmt.Sprintf("Memory usage in bytes"),
-			ConstLabels: labels,
-		})
-		//set and collect
-		m.Set(float64(s.MemoryStats.Usage))
-		m.Collect(ch)
-
-		// build new cpu counter metric
-		m = prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace:   Namespace,
-			Subsystem:   "docker",
-			Name:        string("memory_limit"),
-			Help:        fmt.Sprintf("Memory limit in bytes"),
-			ConstLabels: labels,
-		})
-		//set and collect
-		m.Set(float64(s.MemoryStats.Limit))
-		m.Collect(ch)
-	}
-
 	return nil
 }
 
