@@ -78,11 +78,35 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 				Namespace:   Namespace,
 				Subsystem:   "docker",
 				Name:        string("cpu_usage_total_nanoseconds"),
-				Help:        fmt.Sprintf("CPU total usage in nanoseconds"),
+				Help:        fmt.Sprintf("Total CPU time consumed in nanoseconds"),
 				ConstLabels: labels,
 			})
 			//set and collect
 			m.Set(float64(s.CPUStats.CPUUsage.TotalUsage))
+			m.Collect(ch)
+
+			// build new cpu throttle time counter metric
+			m = prometheus.NewCounter(prometheus.CounterOpts{
+				Namespace:   Namespace,
+				Subsystem:   "docker",
+				Name:        string("cpu_throttled_time_total_nanoseconds"),
+				Help:        fmt.Sprintf("Aggregate time the container was throttled for in nanoseconds."),
+				ConstLabels: labels,
+			})
+			//set and collect
+			m.Set(float64(s.CPUStats.ThrottlingData.ThrottledTime))
+			m.Collect(ch)
+
+			// build new cpu throttled periods counter metric
+			m = prometheus.NewCounter(prometheus.CounterOpts{
+				Namespace:   Namespace,
+				Subsystem:   "docker",
+				Name:        string("cpu_throttled_periods_total"),
+				Help:        fmt.Sprintf("Number of periods when the container hits its throttling limit."),
+				ConstLabels: labels,
+			})
+			//set and collect
+			m.Set(float64(s.CPUStats.ThrottlingData.ThrottledPeriods))
 			m.Collect(ch)
 
 			// build new memory gauge metric
