@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -76,7 +77,7 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 			m := prometheus.NewCounter(prometheus.CounterOpts{
 				Namespace:   Namespace,
 				Subsystem:   "docker",
-				Name:        string("cpu_total_usage"),
+				Name:        string("cpu_usage_total_nanoseconds"),
 				Help:        fmt.Sprintf("CPU total usage in nanoseconds"),
 				ConstLabels: labels,
 			})
@@ -84,11 +85,11 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 			m.Set(float64(s.CPUStats.CPUUsage.TotalUsage))
 			m.Collect(ch)
 
-			// build new cpu counter metric
+			// build new memory gauge metric
 			m = prometheus.NewGauge(prometheus.GaugeOpts{
 				Namespace:   Namespace,
 				Subsystem:   "docker",
-				Name:        string("memory_usage"),
+				Name:        string("memory_usage_bytes"),
 				Help:        fmt.Sprintf("Memory usage in bytes"),
 				ConstLabels: labels,
 			})
@@ -96,17 +97,35 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 			m.Set(float64(s.MemoryStats.Usage))
 			m.Collect(ch)
 
-			// build new cpu counter metric
+			// build new memory limit gauge metric
 			m = prometheus.NewGauge(prometheus.GaugeOpts{
 				Namespace:   Namespace,
 				Subsystem:   "docker",
-				Name:        string("memory_limit"),
+				Name:        string("memory_limit_bytes"),
 				Help:        fmt.Sprintf("Memory limit in bytes"),
 				ConstLabels: labels,
 			})
 			//set and collect
 			m.Set(float64(s.MemoryStats.Limit))
 			m.Collect(ch)
+
+			for _, io := range s.BlkioStats.IoServiceBytesRecursive {
+				// add labels
+				labels["dev_major"] = strconv.FormatUint(io.Major, 10)
+				labels["dev_minor"] = strconv.FormatUint(io.Minor, 10)
+				labels["operation"] = strings.ToLower(io.Op)
+				// build new memory limit gauge metric
+				m = prometheus.NewGauge(prometheus.GaugeOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("blkio_op_total_bytes"),
+					Help:        fmt.Sprintf("Block IO ops"),
+					ConstLabels: labels,
+				})
+				//set and collect
+				m.Set(float64(io.Value))
+				m.Collect(ch)
+			}
 		}(c)
 	}
 
