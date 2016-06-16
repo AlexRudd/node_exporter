@@ -114,8 +114,8 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 				labels["dev_major"] = strconv.FormatUint(io.Major, 10)
 				labels["dev_minor"] = strconv.FormatUint(io.Minor, 10)
 				labels["operation"] = strings.ToLower(io.Op)
-				// build new memory limit gauge metric
-				m = prometheus.NewGauge(prometheus.GaugeOpts{
+				// build new block io counter metric
+				m = prometheus.NewCounter(prometheus.CounterOpts{
 					Namespace:   Namespace,
 					Subsystem:   "docker",
 					Name:        string("blkio_op_total_bytes"),
@@ -126,6 +126,95 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 				m.Set(float64(io.Value))
 				m.Collect(ch)
 			}
+			delete(labels, "dev_major")
+			delete(labels, "dev_minor")
+			delete(labels, "operation")
+
+			for dev, netio := range s.Networks {
+				// add labels
+				labels["device"] = dev
+
+				// RECIEVED
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_rx_total_bytes"),
+					Help:        fmt.Sprintf("Network bytes recieved by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.RxBytes))
+				m.Collect(ch)
+
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_rx_total_packets"),
+					Help:        fmt.Sprintf("Network packets recieved by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.RxPackets))
+				m.Collect(ch)
+
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_rx_total_errors"),
+					Help:        fmt.Sprintf("Network errors recieved by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.RxErrors))
+				m.Collect(ch)
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_rx_total_dropped"),
+					Help:        fmt.Sprintf("Network dropped recieved by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.RxDropped))
+				m.Collect(ch)
+
+				// TRANSMITTED
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_tx_total_bytes"),
+					Help:        fmt.Sprintf("Network bytes transmitted by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.TxBytes))
+				m.Collect(ch)
+
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_tx_total_packets"),
+					Help:        fmt.Sprintf("Network packets transmitted by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.TxPackets))
+				m.Collect(ch)
+
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_tx_total_errors"),
+					Help:        fmt.Sprintf("Network errors transmitted by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.TxErrors))
+				m.Collect(ch)
+				m = prometheus.NewCounter(prometheus.CounterOpts{
+					Namespace:   Namespace,
+					Subsystem:   "docker",
+					Name:        string("network_tx_total_dropped"),
+					Help:        fmt.Sprintf("Network dropped transmitted by device"),
+					ConstLabels: labels,
+				})
+				m.Set(float64(netio.TxDropped))
+				m.Collect(ch)
+			}
+
 		}(c)
 	}
 
@@ -169,7 +258,7 @@ func (c *DockerCollector) updateContainerList() {
 	c.containers = ids
 }
 
-func scrapeDockerStats(container types.Container) *types.Stats {
+func scrapeDockerStats(container types.Container) *types.StatsJSON {
 	log.Debugf("Scraping container stats for %s", container.Names[0])
 	cli, err := getDockerClient()
 	if err != nil {
@@ -183,7 +272,7 @@ func scrapeDockerStats(container types.Container) *types.Stats {
 	}
 	defer rc.Close()
 	decoder := json.NewDecoder(rc)
-	var stats types.Stats
+	var stats types.StatsJSON
 	err = decoder.Decode(&stats)
 	if err != nil {
 		log.Errorf("Couldn't decode stats json from container %s: %s", container.Names[0], err.Error())
