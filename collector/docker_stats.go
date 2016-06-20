@@ -67,6 +67,9 @@ func (c *DockerCollector) Update(ch chan<- prometheus.Metric) (err error) {
 		go func(container types.Container) {
 			defer wg.Done()
 			s := scrapeDockerStats(container)
+			if s == nil {
+				return
+			}
 			// set container name
 			var labels = make(prometheus.Labels)
 			labels["name"] = strings.TrimPrefix(container.Names[0], "/")
