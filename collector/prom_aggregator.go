@@ -77,7 +77,7 @@ func (c *promAggCollector) Update(ch chan<- prometheus.Metric) (err error) {
 					labels[lk] = lv
 				}
 				// build new untyped metric
-				m := prometheus.NewGauge(prometheus.GaugeOpts{
+				m := prometheus.NewUntyped(prometheus.UntypedOpts{
 					//Namespace: Namespace,
 					//Subsystem: "promagg",
 					Name:        string(s.Metric["__name__"]),
@@ -145,6 +145,7 @@ func (c *promAggCollector) scrape(url string) (model.Samples, error) {
 		if err = sdec.Decode(&decSamples); err != nil {
 			break
 		}
+
 		allSamples = append(allSamples, decSamples...)
 		decSamples = decSamples[:0]
 	}
